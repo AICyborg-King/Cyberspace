@@ -1,14 +1,7 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { QuizQuestion, ChatMessage } from "../types";
 
-// Explicitly declare process to satisfy TypeScript compiler
-// The actual value is replaced by Vite at build time via `define`
-declare const process: {
-  env: {
-    API_KEY: string;
-  }
-};
-
+// @ts-ignore - process.env.API_KEY is replaced by Vite at build time
 const apiKey = process.env.API_KEY || '';
 
 const ai = new GoogleGenAI({ apiKey });
