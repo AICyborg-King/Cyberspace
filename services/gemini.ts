@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { QuizQuestion, ChatMessage } from "../types";
 
-// Access API key safely without conflicting global process declaration
-const apiKey = (process.env as any).API_KEY || '';
+// @ts-ignore
+const apiKey = process.env.API_KEY || '';
 
 const ai = new GoogleGenAI({ apiKey });
 
