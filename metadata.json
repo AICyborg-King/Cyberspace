@@ -1,0 +1,7 @@
+{
+  "name": "EDUFLY",
+  "description": "An AI-powered study assistant and academic planner helping students learn smarter.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
