@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Note, Subject } from '../types';
-import { Plus, Search, Trash2, Edit3, X, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { Plus, Search, Trash2, Edit3, X, Sparkles, Image as ImageIcon, Check } from 'lucide-react';
 import { summarizeNotes } from '../services/gemini';
 
 const Notes: React.FC = () => {
@@ -10,7 +10,69 @@ const Notes: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentNote, setCurrentNote] = useState<Partial<Note>>({});
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [lastAutoSaved, setLastAutoSaved] = useState<Date | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Refs to access latest state inside interval without resetting it
+  const stateRef = useRef({ currentNote, notes, addNote, updateNote });
+
+  useEffect(() => {
+    stateRef.current = { currentNote, notes, addNote, updateNote };
+  }, [currentNote, notes, addNote, updateNote]);
+
+  // Auto-save Interval
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const interval = setInterval(() => {
+      const { currentNote, notes, addNote, updateNote } = stateRef.current;
+
+      if (!currentNote.title || !currentNote.content) return;
+
+      let shouldSave = false;
+
+      // Check if new note (no ID yet)
+      if (!currentNote.id) {
+        shouldSave = true;
+      } else {
+        // Check if modified compared to stored note
+        const original = notes.find(n => n.id === currentNote.id);
+        if (original) {
+           if (original.title !== currentNote.title || 
+               original.content !== currentNote.content ||
+               original.subject !== currentNote.subject ||
+               original.image !== currentNote.image) {
+              shouldSave = true;
+           }
+        } else {
+            // Edge case: Note has ID but not found (deleted externally?), save to restore/create
+            shouldSave = true;
+        }
+      }
+
+      if (shouldSave) {
+        const now = new Date().toISOString();
+        if (currentNote.id) {
+           const updated = { ...currentNote, updatedAt: now } as Note;
+           updateNote(updated);
+           setLastAutoSaved(new Date());
+        } else {
+           const newId = Date.now().toString();
+           const newNote = {
+              ...currentNote,
+              id: newId,
+              subject: currentNote.subject || Subject.GENERAL,
+              updatedAt: now,
+           } as Note;
+           addNote(newNote);
+           setCurrentNote(newNote); // Update local state so next save is an 'update'
+           setLastAutoSaved(new Date());
+        }
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isEditing]);
 
   const filteredNotes = notes.filter(n => 
     n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -35,6 +97,7 @@ const Notes: React.FC = () => {
     }
     setIsEditing(false);
     setCurrentNote({});
+    setLastAutoSaved(null);
   };
 
   const handleSummarize = async () => {
@@ -97,7 +160,7 @@ const Notes: React.FC = () => {
             />
           </div>
           <button 
-            onClick={() => { setCurrentNote({ subject: Subject.GENERAL }); setIsEditing(true); }}
+            onClick={() => { setCurrentNote({ subject: Subject.GENERAL }); setIsEditing(true); setLastAutoSaved(null); }}
             className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <Plus size={18} />
@@ -178,7 +241,13 @@ const Notes: React.FC = () => {
                     </button>
                 </div>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 items-center">
+              {lastAutoSaved && (
+                <span className="text-xs text-slate-400 mr-4 flex items-center gap-1 animate-fade-in">
+                    <Check size={12} />
+                    Auto-saved {lastAutoSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </span>
+              )}
               <button 
                 onClick={handleSave}
                 disabled={!currentNote.title || !currentNote.content}
@@ -199,7 +268,7 @@ const Notes: React.FC = () => {
                     {note.subject}
                   </span>
                   <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => { setCurrentNote(note); setIsEditing(true); }} className="text-slate-400 hover:text-indigo-600">
+                    <button onClick={() => { setCurrentNote(note); setIsEditing(true); setLastAutoSaved(null); }} className="text-slate-400 hover:text-indigo-600">
                       <Edit3 size={18} />
                     </button>
                     <button onClick={() => deleteNote(note.id)} className="text-slate-400 hover:text-red-600">

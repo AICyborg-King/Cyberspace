@@ -1,22 +1,91 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Task, Subject } from '../types';
-import { Plus, Trash2, Calendar, CheckCircle, Circle } from 'lucide-react';
+import { Plus, Trash2, Calendar, CheckCircle, Circle, Bell, BellRing } from 'lucide-react';
 
 const Tasks: React.FC = () => {
   const { tasks, addTask, toggleTask, deleteTask } = useData();
   const [newTask, setNewTask] = useState<Partial<Task>>({ subject: Subject.MATH });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    'Notification' in window && Notification.permission === 'granted'
+  );
+
+  // Helper: Get YYYY-MM-DD for tomorrow
+  const getTomorrowString = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const checkUpcomingDeadlines = (currentTasks: Task[]) => {
+    if (Notification.permission !== 'granted') return;
+
+    const tomorrowStr = getTomorrowString();
+    
+    // Find tasks due tomorrow that are not completed
+    const dueTomorrow = currentTasks.filter(t => !t.completed && t.dueDate === tomorrowStr);
+    
+    if (dueTomorrow.length > 0) {
+        // We use a flag in sessionStorage to prevent spamming the user on every page reload
+        const hasNotified = sessionStorage.getItem(`notified_${tomorrowStr}`);
+        if (!hasNotified) {
+            const body = dueTomorrow.length === 1 
+                ? `Don't forget: "${dueTomorrow[0].title}" is due tomorrow!`
+                : `You have ${dueTomorrow.length} tasks due tomorrow. Check your planner.`;
+            
+            new Notification('Study Reminder', { body });
+            sessionStorage.setItem(`notified_${tomorrowStr}`, 'true');
+        }
+    }
+  };
+
+  // Check for reminders on mount
+  useEffect(() => {
+    if (notificationsEnabled) {
+        checkUpcomingDeadlines(tasks);
+    }
+  }, [notificationsEnabled]);
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert('Notifications are not supported by your browser.');
+      return;
+    }
+    
+    const permission = await Notification.requestPermission();
+    setNotificationsEnabled(permission === 'granted');
+    
+    if (permission === 'granted') {
+      new Notification('Notifications Enabled', { 
+        body: 'We will verify your tasks and remind you 1 day before they are due!' 
+      });
+      checkUpcomingDeadlines(tasks);
+    }
+  };
 
   const handleAdd = () => {
     if (!newTask.title || !newTask.dueDate) return;
     
-    addTask({
+    const task: Task = {
       id: Date.now().toString(),
       title: newTask.title,
       subject: newTask.subject || Subject.GENERAL,
       dueDate: newTask.dueDate,
       completed: false,
-    });
+    };
+    
+    addTask(task);
+
+    // Immediate check if the new task is due tomorrow
+    if (notificationsEnabled && task.dueDate === getTomorrowString()) {
+         new Notification('Reminder Scheduled', { 
+            body: `We'll make sure you remember ${task.title} is due tomorrow!` 
+         });
+    }
+
     setNewTask({ title: '', dueDate: '', subject: Subject.MATH });
   };
 
@@ -24,9 +93,23 @@ const Tasks: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">Study Planner</h1>
-        <p className="text-slate-500">Keep track of your homework and assignments.</p>
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-900">Study Planner</h1>
+            <p className="text-slate-500">Keep track of your homework and assignments.</p>
+        </div>
+        <button
+            onClick={requestNotificationPermission}
+            className={`p-3 rounded-xl transition-colors flex items-center gap-2 font-medium text-sm ${
+                notificationsEnabled 
+                ? 'bg-green-50 text-green-700 hover:bg-green-100' 
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            }`}
+            title={notificationsEnabled ? "Notifications Active" : "Enable Reminders"}
+        >
+            {notificationsEnabled ? <BellRing size={20} /> : <Bell size={20} />}
+            <span className="hidden md:inline">{notificationsEnabled ? 'Reminders On' : 'Enable Reminders'}</span>
+        </button>
       </div>
 
       {/* Add Task Form */}
@@ -92,9 +175,12 @@ const Tasks: React.FC = () => {
                   </h3>
                   <div className="flex items-center space-x-3 text-xs text-slate-500 mt-1">
                     <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{task.subject}</span>
-                    <span className="flex items-center space-x-1">
+                    <span className={`flex items-center space-x-1 ${task.dueDate === getTomorrowString() && !task.completed ? 'text-orange-500 font-bold' : ''}`}>
                       <Calendar size={12} />
                       <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                      {task.dueDate === getTomorrowString() && !task.completed && (
+                          <span className="ml-1 text-orange-600 text-[10px] uppercase border border-orange-200 bg-orange-50 px-1 rounded">Due Tomorrow</span>
+                      )}
                     </span>
                   </div>
                 </div>

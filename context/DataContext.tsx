@@ -44,23 +44,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => { localStorage.setItem('edufly_quizzes', JSON.stringify(quizHistory)); }, [quizHistory]);
   useEffect(() => { localStorage.setItem('edufly_chat_history', JSON.stringify(chatHistory)); }, [chatHistory]);
 
-  const addTask = (task: Task) => setTasks([...tasks, task]);
+  const addTask = (task: Task) => setTasks(prev => [...prev, task]);
   
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
-  const deleteTask = (id: string) => setTasks(tasks.filter(t => t.id !== id));
+  const deleteTask = (id: string) => setTasks(prev => prev.filter(t => t.id !== id));
 
-  const addNote = (note: Note) => setNotes([note, ...notes]);
+  const addNote = (note: Note) => setNotes(prev => [note, ...prev]);
   
   const updateNote = (note: Note) => {
-    setNotes(notes.map(n => n.id === note.id ? note : n));
+    setNotes(prev => prev.map(n => n.id === note.id ? note : n));
   };
 
-  const deleteNote = (id: string) => setNotes(notes.filter(n => n.id !== id));
+  const deleteNote = (id: string) => setNotes(prev => prev.filter(n => n.id !== id));
 
-  const saveQuizResult = (result: QuizResult) => setQuizHistory([result, ...quizHistory]);
+  const saveQuizResult = (result: QuizResult) => setQuizHistory(prev => [result, ...prev]);
 
   const updateChatHistory = (messages: ChatMessage[]) => setChatHistory(messages);
   const clearChatHistory = () => setChatHistory([]);
