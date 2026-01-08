@@ -4,6 +4,10 @@ import { QuizQuestion, ChatMessage } from "../types";
 // @ts-ignore - process.env.API_KEY is replaced by Vite at build time
 const apiKey = process.env.API_KEY || '';
 
+if (!apiKey) {
+  console.error("Gemini API Error: API_KEY is missing. Please check your environment variables.");
+}
+
 const ai = new GoogleGenAI({ apiKey });
 
 const STUDENT_SYSTEM_INSTRUCTION = `

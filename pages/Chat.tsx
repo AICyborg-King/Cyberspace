@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User as UserIcon, Save, Mic, MicOff, Trash2, Paperclip, X, Check, Sparkles } from 'lucide-react';
+import { Send, Bot, User as UserIcon, Save, Mic, MicOff, Trash2, Paperclip, X, Check, Sparkles, AlertCircle } from 'lucide-react';
 import { createChatSession } from '../services/gemini';
 import { ChatMessage, Subject, Note } from '../types';
 import { useData } from '../context/DataContext';
@@ -75,7 +75,7 @@ const Chat: React.FC = () => {
          setMessages(prev => [...prev, { 
              id: Date.now().toString(), 
              role: 'model', 
-             text: "Sorry, I'm having trouble connecting right now. Please try again.", 
+             text: "I couldn't initialize the connection. Please check your network or API Key configuration.", 
              timestamp: Date.now() 
          }]);
          return;
@@ -144,17 +144,21 @@ const Chat: React.FC = () => {
          throw new Error("No response generated");
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat Error", error);
       setIsLoading(false);
       // Reset chat session to ensure clean state for next attempt
       setChatSession(null);
       
-      // Add user-friendly error message
+      let errorMsg = "Sorry, I'm having trouble connecting right now. Please try again.";
+      if (error.message && error.message.includes('API_KEY')) {
+          errorMsg = "Configuration Error: API Key is missing or invalid.";
+      }
+      
       setMessages(prev => [...prev, { 
           id: Date.now().toString(), 
           role: 'model', 
-          text: "Sorry, I'm having trouble connecting right now. Please try again.", 
+          text: errorMsg, 
           timestamp: Date.now() 
       }]);
     }
@@ -274,12 +278,12 @@ const Chat: React.FC = () => {
                   msg.role === 'user' 
                     ? 'bg-slate-900 text-white rounded-tr-none' 
                     : 'bg-slate-50 text-slate-800 border border-slate-100 rounded-tl-none'
-                } ${msg.role === 'model' && msg.text.startsWith('Sorry,') ? 'bg-red-50 border-red-100 text-red-600' : ''}`}>
+                } ${msg.role === 'model' && (msg.text.startsWith('Sorry,') || msg.text.includes('Error')) ? 'bg-red-50 border-red-100 text-red-600' : ''}`}>
                   {msg.image && (
                     <img src={msg.image} alt="User upload" className="max-w-full h-auto rounded-lg mb-2 border border-white/20" />
                   )}
                   {msg.text}
-                  {msg.role === 'model' && msg.text && !msg.text.startsWith('Sorry,') && (
+                  {msg.role === 'model' && msg.text && !(msg.text.startsWith('Sorry,') || msg.text.includes('Error')) && (
                     <button 
                       onClick={() => handleSaveToNotes(msg.id)}
                       disabled={savedMsgIds.has(msg.id)}
@@ -292,6 +296,12 @@ const Chat: React.FC = () => {
                       {savedMsgIds.has(msg.id) ? <Check size={14} /> : <Save size={14} />}
                       <span>{savedMsgIds.has(msg.id) ? 'Saved' : 'Save to Notes'}</span>
                     </button>
+                  )}
+                  {msg.role === 'model' && (msg.text.startsWith('Sorry,') || msg.text.includes('Error')) && (
+                     <div className="flex items-center space-x-1 mt-2 text-xs font-semibold">
+                        <AlertCircle size={14} />
+                        <span>Connection Issue</span>
+                     </div>
                   )}
                 </div>
                 <span className="text-[10px] text-slate-400 mt-1.5 px-1 font-medium select-none">

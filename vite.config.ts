@@ -9,7 +9,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       // Polyfill process.env.API_KEY so the existing service code works without modification
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // Fallback to empty string if undefined to prevent JSON.stringify(undefined)
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || '')
     },
     build: {
       outDir: 'dist',
