@@ -1,6 +1,14 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { QuizQuestion, ChatMessage } from "../types";
 
+// Ensure process is defined for TypeScript without needing @types/node explicitly in all envs
+declare var process: {
+  env: {
+    API_KEY: string;
+    [key: string]: string | undefined;
+  }
+};
+
 // Check for API key availability
 const apiKey = process.env.API_KEY || '';
 
@@ -33,6 +41,9 @@ export const createChatSession = (history?: ChatMessage[]): Chat => {
           // we skip the subsequent ones for the SDK context to prevent errors.
           if (msg.role === lastRole) continue;
 
+          // Ensure 'user' or 'model' are the only roles passed
+          if (msg.role !== 'user' && msg.role !== 'model') continue;
+
           const parts: any[] = [{ text: msg.text }];
           
           if (msg.image) {
@@ -63,8 +74,6 @@ export const createChatSession = (history?: ChatMessage[]): Chat => {
       // If we pass a history ending in 'user' and then immediately call `sendMessage` (another user message),
       // we violate the User->Model->User flow.
       // Therefore, if the history ends in 'user', we remove it from the SDK context. 
-      // The user still sees it in the UI, but for the API session, we start *before* that hanging message
-      // so the new message is accepted as the correct next turn.
       if (sdkHistory.length > 0 && sdkHistory[sdkHistory.length - 1].role === 'user') {
           sdkHistory.pop();
       }
@@ -82,52 +91,56 @@ export const createChatSession = (history?: ChatMessage[]): Chat => {
 export const generateQuizQuestions = async (subject: string, topic: string, difficulty: string): Promise<QuizQuestion[]> => {
   const prompt = `Generate a quiz for a ${difficulty} level student studying ${subject}. The specific topic is "${topic}". Generate 5 multiple choice questions.`;
   
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            question: { type: Type.STRING },
-            options: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "A list of 4 possible answers"
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING },
+                description: "A list of 4 possible answers"
+              },
+              correctAnswerIndex: { 
+                type: Type.INTEGER, 
+                description: "The index (0-3) of the correct answer in the options array" 
+              },
+              explanation: { 
+                type: Type.STRING,
+                description: "A short explanation of why the answer is correct"
+              }
             },
-            correctAnswerIndex: { 
-              type: Type.INTEGER, 
-              description: "The index (0-3) of the correct answer in the options array" 
-            },
-            explanation: { 
-              type: Type.STRING,
-              description: "A short explanation of why the answer is correct"
-            }
-          },
-          required: ["question", "options", "correctAnswerIndex", "explanation"]
+            required: ["question", "options", "correctAnswerIndex", "explanation"]
+          }
         }
       }
-    }
-  });
+    });
 
-  if (response.text) {
-    try {
+    if (response.text) {
       return JSON.parse(response.text) as QuizQuestion[];
-    } catch (e) {
-      console.error("Failed to parse quiz JSON", e);
-      return [];
     }
+  } catch (e) {
+    console.error("Failed to generate quiz", e);
   }
   return [];
 };
 
 export const summarizeNotes = async (content: string): Promise<string> => {
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Summarize the following study notes into key bullet points for quick revision:\n\n${content}`,
-  });
-  return response.text || "Could not generate summary.";
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Summarize the following study notes into key bullet points for quick revision:\n\n${content}`,
+    });
+    return response.text || "Could not generate summary.";
+  } catch (e) {
+    console.error("Summarization failed", e);
+    return "Error generating summary.";
+  }
 };
