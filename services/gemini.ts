@@ -1,16 +1,8 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { QuizQuestion, ChatMessage } from "../types";
 
-// Ensure process is defined for TypeScript without needing @types/node explicitly in all envs
-declare var process: {
-  env: {
-    API_KEY: string;
-    [key: string]: string | undefined;
-  }
-};
-
-// Check for API key availability
-const apiKey = process.env.API_KEY || '';
+// Access API key safely without conflicting global process declaration
+const apiKey = (process.env as any).API_KEY || '';
 
 const ai = new GoogleGenAI({ apiKey });
 

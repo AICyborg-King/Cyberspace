@@ -11,11 +11,11 @@ const strToBin = (str: string): Uint8Array => {
 };
 
 export const isBiometricsSupported = async (): Promise<boolean> => {
-  if (!window.PublicKeyCredential) return false;
+  if (!(window as any).PublicKeyCredential) return false;
   
   // Check if platform authenticator (TouchID/FaceID/Windows Hello) is available
   try {
-    const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    const available = await (window as any).PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     return available;
   } catch (e) {
     return false;
